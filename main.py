@@ -1,17 +1,11 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
+"""Punto de entrada de la aplicación de métodos numéricos."""
 
-root = tk.Tk()
-root.title("Mi primera app")
-root.geometry("300x200")
+from gui import App
 
-nombre = tk.StringVar()
 
-def saludar():
-    messagebox.showinfo("Hola", f"Hola, {nombre.get()}!")
+def main():
+    App().mainloop()
 
-ttk.Label(root, text="Tu nombre:").pack(pady=10)
-ttk.Entry(root, textvariable=nombre).pack()
-ttk.Button(root, text="Saludar", command=saludar).pack(pady=10)
 
-root.mainloop()
+if __name__ == "__main__":
+    main()
