@@ -188,24 +188,24 @@ class TabMuller(TabBase):
     def __init__(self, master):
         super().__init__(master)
         self.funcion = tk.StringVar(value=FUNCION_DEFECTO)
-        self.a = tk.StringVar(value="0")
-        self.b = tk.StringVar(value="0.5")
-        self.c = tk.StringVar(value="1")
+        self.x0 = tk.StringVar(value="0")
+        self.x1 = tk.StringVar(value="0.5")
+        self.x2 = tk.StringVar(value="1")
         self.tol = tk.StringVar(value="1e-6")
         self.max_iter = tk.StringVar(value="100")
 
         self.agregar_funcion(0)
-        self.agregar_campo(1, 0, "a =", self.a)
-        self.agregar_campo(1, 1, "b =", self.b)
-        self.agregar_campo(1, 2, "c =", self.c)
+        self.agregar_campo(1, 0, "x0 =", self.x0)
+        self.agregar_campo(1, 1, "x1 =", self.x1)
+        self.agregar_campo(1, 2, "x2 =", self.x2)
         self.agregar_campo(1, 3, "Tolerancia (%) =", self.tol)
         self.agregar_campo(1, 4, "Máx. iteraciones =", self.max_iter)
 
     def ejecutar(self):
         return M.muller(
-            leer_float(self.a, "a"),
-            leer_float(self.b, "b"),
-            leer_float(self.c, "c"),
+            leer_float(self.x0, "x0"),
+            leer_float(self.x1, "x1"),
+            leer_float(self.x2, "x2"),
             max_iter=leer_entero(self.max_iter, "el máximo de iteraciones"),
             tol=leer_float(self.tol, "la tolerancia"),
             f=self.funcion.get(),
