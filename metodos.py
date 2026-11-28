@@ -51,18 +51,14 @@ def error_relativo(actual, anterior):
     return abs((actual - anterior) / actual) * 100
 
 
-def preparar_funcion(expresion):
-    """Convierte texto o callable en funciones numéricas ``(f, f')``.
+def _preparar_derivadas(expresion, orden):
+    """Devuelve ``f`` y sus derivadas hasta el ``orden`` indicado.
 
-    Parameters
-    ----------
-    expresion:
-        Cadena evaluable por SymPy (por ejemplo ``"x**3 - 2*x + 1"``) o un
-        callable de una sola variable. Para un callable la derivada es
-        ``None`` (se calcula numéricamente si hace falta).
+    Para una cadena se derivan simbólicamente con SymPy; para un callable
+    las derivadas se devuelven como ``None`` y se aproximan numéricamente.
     """
     if callable(expresion):
-        return expresion, None
+        return [expresion] + [None] * orden
 
     x = sp.Symbol("x")
     try:
@@ -76,11 +72,25 @@ def preparar_funcion(expresion):
         raise ValueError(f"La función solo puede usar la variable x (encontradas: {nombres}).")
 
     try:
-        f = sp.lambdify(x, expr, modules=["math"])
-        df = sp.lambdify(x, sp.diff(expr, x), modules=["math"])
+        return [
+            sp.lambdify(x, sp.diff(expr, x, grado), modules=["math"])
+            for grado in range(orden + 1)
+        ]
     except Exception as exc:  # pragma: no cover - depende de SymPy
         raise ValueError(f"No se pudo preparar la función: {exc}") from exc
 
+
+def preparar_funcion(expresion):
+    """Convierte texto o callable en funciones numéricas ``(f, f')``.
+
+    Parameters
+    ----------
+    expresion:
+        Cadena evaluable por SymPy (por ejemplo ``"x**3 - 2*x + 1"``) o un
+        callable de una sola variable. Para un callable la derivada es
+        ``None`` (se calcula numéricamente si hace falta).
+    """
+    f, df = _preparar_derivadas(expresion, 1)
     return f, df
 
 
@@ -91,6 +101,10 @@ def _como_funcion(expresion):
 
 def _derivada_numerica(f, x, h=1e-7):
     return (f(x + h) - f(x - h)) / (2 * h)
+
+
+def _segunda_derivada_numerica(f, x, h=1e-5):
+    return (f(x + h) - 2 * f(x) + f(x - h)) / (h * h)
 
 
 def biseccion(a, b, tol=1e-6, max_iter=100, f=funcion):
@@ -376,40 +390,88 @@ def newton_raphson(funcion_str, x0, tol=1e-6, max_iter=100, df=None):
                      convergio=convergio, mensaje=mensaje)
 
 
-def division_sintetica(polinomio, r):
-    """División sintética de ``polinomio`` entre ``(x - r)``.
+def newton_raphson_modificado(funcion_str, x0, tol=1e-6, max_iter=100):
+    """Método de Newton-Raphson modificado para raíces múltiples.
 
-    ``polinomio`` está de mayor a menor grado. Devuelve el cociente y el
-    residuo en ``extra``.
+    Usa la fórmula
+
+    ``x_(i+1) = x_i - f(x_i)·f'(x_i) / ([f'(x_i)]² - f(x_i)·f''(x_i))``
+
+    que recupera la convergencia cuadrática cuando la raíz tiene
+    multiplicidad mayor que uno. ``funcion_str`` puede ser una cadena (se
+    deriva simbólicamente con SymPy) o un callable (en cuyo caso las
+    derivadas se aproximan numéricamente). ``tol`` es la tolerancia del
+    error relativo porcentual; ``|f(x)|`` se usa para detectar un
+    estancamiento sin raíz.
     """
-    columnas = ["Paso", "Coeficiente original", "Coeficiente b", "r · b anterior"]
-    try:
-        coeficientes = [float(coef) for coef in polinomio]
-    except (TypeError, ValueError) as exc:
-        raise ValueError("Los coeficientes deben ser numéricos.") from exc
+    columnas = [
+        "Iteración",
+        "x_i",
+        "f(x_i)",
+        "f'(x_i)",
+        "f''(x_i)",
+        "x_(i+1)",
+        "Error %",
+    ]
+    tabla = []
 
-    if len(coeficientes) < 2:
-        raise ValueError("Se requieren al menos dos coeficientes.")
+    f, df_calculada, ddf_calculada = _preparar_derivadas(funcion_str, 2)
+    if df_calculada is None:
+        df_calculada = lambda x: _derivada_numerica(f, x)
+    if ddf_calculada is None:
+        ddf_calculada = lambda x: _segunda_derivada_numerica(f, x)
 
-    n = len(coeficientes)
-    cociente = [0.0] * n
-    cociente[0] = coeficientes[0]
+    x = x0
+    err = math.inf
+    convergio = False
+    for i in range(1, max_iter + 1):
+        y = f(x)
+        dy = df_calculada(x)
+        ddy = ddf_calculada(x)
 
-    tabla = [[f"b_{n - 1}", coeficientes[0], cociente[0], None]]
-    for i in range(1, n):
-        cociente[i] = coeficientes[i] + r * cociente[i - 1]
-        etiqueta = f"b_{n - 1 - i}" if i < n - 1 else "Residuo"
-        tabla.append([etiqueta, coeficientes[i], cociente[i], r * cociente[i - 1]])
+        if y == 0:
+            return Resultado(
+                "Newton-Raphson modificado", columnas, tabla, raiz=x,
+                convergio=True,
+                mensaje=f"f({x:g}) = 0, la raíz es {x:g}.",
+            )
 
-    nuevos = cociente[:-1]
-    residuo = cociente[-1]
+        denominador = dy * dy - y * ddy
+        if abs(denominador) < 1e-14:
+            return Resultado(
+                "Newton-Raphson modificado", columnas, tabla, raiz=x,
+                mensaje="El denominador es cercano a cero; el método no puede continuar.",
+            )
 
-    return Resultado(
-        "División sintética", columnas, tabla,
-        mensaje=f"Cociente de grado {n - 2}, residuo = {residuo:.3e}.",
-        convergio=True,
-        extra={"coeficientes": nuevos, "residuo": residuo},
-    )
+        x_nuevo = x - (y * dy) / denominador
+        err = error_relativo(x_nuevo, x)
+        tabla.append([i, x, y, dy, ddy, x_nuevo, err])
+
+        # La fórmula modificada conserva la convergencia cuadrática en
+        # raíces múltiples, así que basta el error relativo. Si la
+        # aproximación deja de moverse sin acercarse a una raíz, se detiene.
+        if x_nuevo == x:
+            if abs(f(x_nuevo)) < tol:
+                x = x_nuevo
+                convergio = True
+                break
+            return Resultado(
+                "Newton-Raphson modificado", columnas, tabla, raiz=x,
+                mensaje="El método se estancó sin alcanzar la tolerancia.",
+            )
+
+        convergio = err < tol
+        x = x_nuevo
+        if convergio:
+            break
+
+    if convergio:
+        mensaje = f"Raíz aproximada: {x:.10g} (error {err:.3e} %)."
+    else:
+        mensaje = f"Se alcanzó el máximo de iteraciones ({max_iter})."
+
+    return Resultado("Newton-Raphson modificado", columnas, tabla, raiz=x,
+                     convergio=convergio, mensaje=mensaje)
 
 
 if __name__ == "__main__":
@@ -417,6 +479,7 @@ if __name__ == "__main__":
         biseccion(-1, 0),
         muller(0, 0.5, 1),
         newton_raphson("x**3 - 4*x**2 + 5*x - 2", 0),
+        newton_raphson_modificado("x**3 - 4*x**2 + 5*x - 2", 0),
         bairstow([1, -4, 2, 3, -1], -2, -2),
     ):
         print(f"{resultado.metodo}: {resultado.mensaje}")

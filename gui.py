@@ -29,8 +29,8 @@ METODOS = (
     ("biseccion", "Bisección", "Intervalo [a, b] con cambio de signo"),
     ("muller", "Müller", "Tres aproximaciones iniciales"),
     ("newton", "Newton-Raphson", "Función y punto inicial"),
+    ("newton_mod", "Newton-Raphson modificado", "Raíces múltiples con f, f' y f''"),
     ("bairstow", "Bairstow", "Factor cuadrático de un polinomio"),
-    ("division", "División sintética", "Cociente y residuo entre (x - r)"),
 )
 
 
@@ -418,6 +418,30 @@ class TabNewton(TabBase):
         )
 
 
+class TabNewtonModificado(TabBase):
+    titulo = "Newton-Raphson modificado"
+
+    def __init__(self, master, al_volver):
+        super().__init__(master, al_volver)
+        self.funcion = tk.StringVar(value="x**3 - 4*x**2 + 5*x - 2")
+        self.x0 = tk.StringVar(value="0")
+        self.tol = tk.StringVar(value="1e-6")
+        self.max_iter = tk.StringVar(value="100")
+
+        self.agregar_funcion(0)
+        self.agregar_campo(1, 0, "x0 =", self.x0)
+        self.agregar_campo(1, 1, "Tolerancia (%) =", self.tol)
+        self.agregar_campo(1, 2, "Máx. iteraciones =", self.max_iter)
+
+    def ejecutar(self):
+        return M.newton_raphson_modificado(
+            self.funcion.get(),
+            leer_float(self.x0, "x0"),
+            tol=leer_float(self.tol, "la tolerancia"),
+            max_iter=leer_entero(self.max_iter, "el máximo de iteraciones"),
+        )
+
+
 class TabBairstow(TabBase):
     titulo = "Bairstow"
 
@@ -442,24 +466,6 @@ class TabBairstow(TabBase):
             leer_float(self.n, "n"),
             tol=leer_float(self.tol, "la tolerancia"),
             max_iter=leer_entero(self.max_iter, "el máximo de iteraciones"),
-        )
-
-
-class TabDivisionSintetica(TabBase):
-    titulo = "División sintética"
-
-    def __init__(self, master, al_volver):
-        super().__init__(master, al_volver)
-        self.coeficientes = tk.StringVar(value=COEFICIENTES_DEFECTO)
-        self.r = tk.StringVar(value="-0.764014925")
-
-        self.agregar_coeficientes(0)
-        self.agregar_campo(1, 0, "r =", self.r)
-
-    def ejecutar(self):
-        return M.division_sintetica(
-            leer_coeficientes(self.coeficientes, minimo=2),
-            leer_float(self.r, "r"),
         )
 
 
@@ -560,8 +566,8 @@ class App(tk.Tk):
             ("biseccion", TabBiseccion),
             ("muller", TabMuller),
             ("newton", TabNewton),
+            ("newton_mod", TabNewtonModificado),
             ("bairstow", TabBairstow),
-            ("division", TabDivisionSintetica),
         ):
             self.pantallas[clave] = clase(self.contenedor, al_volver=self.mostrar_menu)
 

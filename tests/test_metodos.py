@@ -124,21 +124,23 @@ class TestBairstow(unittest.TestCase):
         self.assertIn("nulo", resultado.mensaje)
 
 
-class TestDivisionSintetica(unittest.TestCase):
-    def test_residuo_casi_cero(self):
-        resultado = M.division_sintetica([1, -4, 2, 3, -1], -0.764014925)
-        self.assertAlmostEqual(resultado.extra["residuo"], 0.0, places=5)
-        self.assertEqual(len(resultado.extra["coeficientes"]), 4)
+class TestNewtonModificado(unittest.TestCase):
+    def test_raiz_multiple(self):
+        resultado = M.newton_raphson_modificado("x**3 - 4*x**2 + 5*x - 2", 0)
+        self.assertTrue(resultado.convergio)
+        self.assertAlmostEqual(resultado.raiz, 1.0, places=5)
+        f, _ = M.preparar_funcion("x**3 - 4*x**2 + 5*x - 2")
+        self.assertLess(abs(f(resultado.raiz)), 1e-6)
 
-    def test_cociente_correcto(self):
-        resultado = M.division_sintetica([1, -4, 2, 3, -1], 1)
-        # x^4-4x^3+2x^2+3x-1 entre (x-1): cociente 1 -3 -1 2 y residuo 1
-        self.assertEqual(resultado.extra["coeficientes"], [1.0, -3.0, -1.0, 2.0])
-        self.assertAlmostEqual(resultado.extra["residuo"], 1.0)
+    def test_raiz_simple_callable(self):
+        resultado = M.newton_raphson_modificado(lambda x: x * x - 4, 1)
+        self.assertTrue(resultado.convergio)
+        self.assertAlmostEqual(resultado.raiz, 2.0, places=5)
 
-    def test_polinomio_muy_corto(self):
-        with self.assertRaises(ValueError):
-            M.division_sintetica([1], 2)
+    def test_denominador_nulo(self):
+        resultado = M.newton_raphson_modificado("exp(x)", 0)
+        self.assertFalse(resultado.convergio)
+        self.assertIn("denominador", resultado.mensaje)
 
 
 class TestImportacion(unittest.TestCase):
